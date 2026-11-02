@@ -63,3 +63,24 @@ El formulario de carga requiere seleccionar un disco existente, permite
 preescuchar el audio y cambiar el nombre base manteniendo fija la extensión.
 La carga muestra el porcentaje de progreso; el explorador inferior permite
 buscar y filtrar temas por disco, preescucharlos y borrarlos.
+
+## Despliegue en EasyPanel desde GitHub
+
+1. Crea un servicio **App**, conecta `jsantdev/nas-radio` y selecciona la rama
+   `main`. El **Build Path** debe ser `/`.
+2. Selecciona **Nixpacks** como builder. El archivo `nixpacks.toml` del
+   repositorio fija el comando de inicio (`npm start`), la escucha en
+   `0.0.0.0:3001` y el directorio de datos `/app/data`.
+3. En **Environment**, configura `API_KEY` con el mismo secreto de Radio,
+   generado con al menos 32 bytes aleatorios. No lo pongas en archivos del
+   repositorio.
+4. En **Storage**, crea un volumen persistente con destino `/app/data`, y
+   despliega de nuevo. Así la biblioteca no se pierde al recrear el servicio.
+5. Configura el dominio HTTPS de EasyPanel con **Target Port `3001`** y
+   despliega el servicio. El proceso escucha en el puerto interno `3001`; el
+   puerto público puede ser otro porque el proxy enruta al puerto interno.
+
+Si modificas variables, almacenamiento o dominio, guarda esos cambios y vuelve
+a seleccionar **Deploy** en EasyPanel. En deployments anteriores, verifica que
+el servicio use la revisión más reciente de `main`, que el Build Path sea `/`,
+y que el destino del dominio siga apuntando a `3001`.
