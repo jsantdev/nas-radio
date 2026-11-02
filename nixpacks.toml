@@ -2,7 +2,7 @@ providers = ["node"]
 
 [variables]
 HOST = "0.0.0.0"
-PORT = "3001"
+PORT = "80"
 DATA_DIR = "/app/data"
 NODE_ENV = "production"
 

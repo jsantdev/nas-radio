@@ -387,10 +387,6 @@ body{font:16px system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     try {
-      if (req.method === "GET" && url.pathname === "/") {
-        res.writeHead(302, { Location: "/admin" });
-        return res.end();
-      }
       if (req.method === "GET" && url.pathname === "/api/health") {
         let freeBytes = null;
         try {
@@ -757,7 +753,7 @@ body{font:16px system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 
         }
         return jsonResponse(res, 200, { ok: true });
       }
-      if (req.method === "GET" && url.pathname === "/admin") {
+      if (req.method === "GET" && ["/", "/admin"].includes(url.pathname)) {
         if (!adminSession(req)) {
           return pageResponse(res, htmlPage(`<main><h1>Biblioteca musical</h1><section><h2>Iniciar sesión</h2>
 <form method="post" action="/admin/login"><label>Clave API <input type="password" name="key" autocomplete="current-password" required></label>

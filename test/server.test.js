@@ -138,9 +138,11 @@ test("persists catalogue and rejects a bad checksum", async () => {
 
 test("admin login keeps the API key out of the panel and uses an HTTP-only session", async () => {
   const { base } = await startServer();
-  const page = await fetch(`${base}/admin`);
+  const page = await fetch(`${base}/`);
   assert.equal(page.status, 200);
-  assert.equal((await page.text()).includes(apiKey), false);
+  const loginPage = await page.text();
+  assert.equal(loginPage.includes(apiKey), false);
+  assert.match(loginPage, /Iniciar sesión/);
 
   const login = await fetch(`${base}/admin/login`, {
     method: "POST",
@@ -193,6 +195,9 @@ test("admin login keeps the API key out of the panel and uses an HTTP-only sessi
   const inlineScript = adminHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(inlineScript);
   assert.doesNotThrow(() => new Script(inlineScript));
+  const rootPage = await fetch(`${base}/`, { headers: { Cookie: cookie } });
+  assert.equal(rootPage.status, 200);
+  assert.match(await rootPage.text(), /Explorador de biblioteca/);
 });
 
 test("one-time schedules select the requested track and are removed", async () => {
