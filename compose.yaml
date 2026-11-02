@@ -1,0 +1,17 @@
+services:
+  biblioteca:
+    build: .
+    container_name: nas-biblioteca
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      API_KEY: "${API_KEY:?Define API_KEY en .env}"
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      PORT: 3001
+    volumes:
+      - biblioteca_data:/data
+
+volumes:
+  biblioteca_data:

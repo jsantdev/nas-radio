@@ -1,0 +1,14 @@
+{
+  "name": "nas-radio-library",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Biblioteca musical NAS compatible con el contrato de Radio",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
