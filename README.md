@@ -32,8 +32,9 @@ npm start
 ```
 
 `API_KEY`, `DATA_DIR`, `HOST` y `PORT` son configurables. El servidor escucha
-por defecto en `0.0.0.0:3001`. En EasyPanel con Nixpacks escucha en el puerto
-80. La raíz `/` muestra directamente el panel web. Sin una clave válida de al menos 32 bytes, las
+por defecto en `0.0.0.0:3001`. En EasyPanel con Nixpacks también escucha en el
+puerto interno 3001; el proxy de EasyPanel sirve el sitio en el puerto web
+estándar. La raíz `/` muestra directamente el panel web. Sin una clave válida de al menos 32 bytes, las
 operaciones protegidas y el inicio de sesión del panel no se habilitan.
 
 ## Persistencia y seguridad
@@ -70,9 +71,10 @@ buscar y filtrar temas por disco, preescucharlos y borrarlos.
 1. Crea un servicio **App**, conecta `jsantdev/nas-radio` y selecciona la rama
    `main`. El **Build Path** debe ser `/`.
 2. Selecciona **Nixpacks** como builder. El archivo `nixpacks.toml` fija el
-   comando de inicio (`npm start`), la escucha en `0.0.0.0:80` y el directorio
+   comando de inicio (`npm start`), la escucha en    `0.0.0.0:3001` y el directorio
    de datos `/app/data`.
 3. En **Environment**, configura `API_KEY` con el mismo secreto de Radio.
 4. En **Storage**, crea un volumen persistente con destino `/app/data`.
-5. Configura el dominio HTTPS de EasyPanel con **Target Port `80`** y
-   despliega. La raíz del dominio (`/`) muestra el panel administrativo.
+5. Configura el dominio HTTPS de EasyPanel con **Target Port `3001`** y
+   despliega. La URL pública del dominio usa HTTPS; no agregues `:3001` a la
+   URL del navegador. La raíz del dominio (`/`) muestra el panel.
