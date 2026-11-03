@@ -56,6 +56,13 @@ function validDiscName(name) {
   return typeof name === "string" && name.trim().length > 0 && [...name].length <= 100;
 }
 
+function validTrackTitle(title) {
+  return typeof title === "string"
+    && title.trim().length > 0
+    && [...title].length <= 255
+    && !/[\u0000-\u001f\u007f]/.test(title);
+}
+
 function discIdFor(name) {
   return name.normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -379,6 +386,10 @@ export async function createLibraryServer({
 @media(max-width:850px){.app-shell{padding-right:22px;padding-left:22px}.top-nav{gap:12px}.workspace-grid{grid-template-columns:1fr}.panel-library,.panel-playlist,.panel-schedules{grid-column:auto}.track-list{grid-template-columns:1fr}}
 @media(max-width:600px){.app-shell{padding:0 16px 32px}.topbar{min-height:70px;gap:12px;flex-wrap:wrap;padding:14px 0}.top-nav{order:3;flex:1 0 100%;overflow-x:auto;gap:18px;padding-bottom:3px}.brand-mark{width:36px;height:36px}.brand-name{font-size:.7rem}.brand-caption{font-size:.65rem}.hero{align-items:flex-start;flex-direction:column;padding:38px 0 24px}.hero-status{font-size:.74rem}.stats-grid{gap:8px}.stat-card{padding:13px 12px}.stat-label{font-size:.68rem}.stat-value{font-size:1.35rem}.panel,.panel-library{padding:18px}.library-filters{align-items:stretch;flex-direction:column;gap:0}.library-filters label,.library-filters label:first-child{flex:auto;margin:.45rem 0}.library-filters input[type=search]{min-width:0}.track-heading{align-items:flex-start}.track-heading form button{padding:.45rem .6rem;font-size:.75rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+</style><style>
+.panel-discs{grid-column:1/-1}.disc-management{display:grid;gap:12px}.disc-card{padding:0;overflow:hidden;background:#0c1116;border-color:#263039}.disc-card summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px;cursor:pointer;list-style:none}.disc-card summary::-webkit-details-marker{display:none}.disc-card summary::after{content:"+";color:#c5ed68;font-size:1.2rem;font-weight:800}.disc-card[open] summary::after{content:"−"}.disc-card-body{padding:16px 18px;border-top:1px solid #ffffff12}.disc-toolbar{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;padding-bottom:14px}.disc-rename{display:flex;align-items:flex-end;gap:10px;flex:1}.disc-rename label,.track-rename label{flex:1;margin:0}.disc-rename button,.disc-toolbar>form button,.track-rename button{white-space:nowrap}.disc-track-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.disc-track{display:grid;gap:10px;margin:0;padding:14px;background:#11171d;border-color:#27313a}.disc-track-heading{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.disc-track-heading .muted{font-size:.76rem;overflow-wrap:anywhere}.track-rename{display:flex;align-items:flex-end;gap:8px}.disc-track audio{width:100%;height:38px;filter:invert(.88) hue-rotate(95deg) saturate(.7)}
+@media(max-width:850px){.disc-track-list{grid-template-columns:1fr}}
+@media(max-width:600px){.disc-card-body{padding:12px}.disc-toolbar,.disc-rename{align-items:stretch;flex-direction:column}.disc-toolbar>form{align-self:flex-end}.track-rename{align-items:stretch}.disc-track-heading{align-items:flex-start;flex-direction:column;gap:2px}}
 </style><body>${content}</body></html>`;
   }
 
@@ -472,7 +483,10 @@ export async function createLibraryServer({
         if (!validFileName(fileName)) return fail(res, 400, "Nombre o extensión de archivo no permitidos.");
         const discName = url.searchParams.get("disc")?.trim();
         if (!validDiscName(discName)) return fail(res, 400, "El parámetro disc debe tener entre 1 y 100 caracteres.");
-        const discId = discIdFor(discName);
+        const requestedDiscId = discIdFor(discName);
+        const existingDisc = state.discs.find((disc) =>
+          disc.id === requestedDiscId || disc.name === discName);
+        const discId = existingDisc?.id ?? requestedDiscId;
         if (!discId) return fail(res, 400, "El nombre no genera un ID de disco válido.");
         const trackId = `${discId}/${fileName}`;
         const tempPath = join(tempRoot, `upload-${randomBytes(12).toString("hex")}.tmp`);
@@ -691,9 +705,13 @@ export async function createLibraryServer({
           return fail(res, 400, "Content-Type debe ser application/octet-stream.");
         }
         const fileName = decodeURIComponent(req.headers["x-file-name"] ?? "");
-        const discName = url.searchParams.get("disc")?.trim();
-        if (!validFileName(fileName) || !validDiscName(discName)) return fail(res, 400, "Nombre de disco o archivo inválido.");
-        const discId = discIdFor(discName);
+        const requestedDisc = url.searchParams.get("disc")?.trim();
+        if (!validFileName(fileName) || !validDiscName(requestedDisc)) return fail(res, 400, "Nombre de disco o archivo inválido.");
+        const existingDisc = state.discs.find((disc) =>
+          disc.id === requestedDisc || disc.name === requestedDisc
+          || disc.id === discIdFor(requestedDisc));
+        const discId = existingDisc?.id ?? discIdFor(requestedDisc);
+        const discName = existingDisc?.name ?? requestedDisc;
         const id = `${discId}/${fileName}`;
         const tempPath = join(tempRoot, `admin-${randomBytes(12).toString("hex")}.tmp`);
         const details = await receiveUpload(req, tempPath);
@@ -766,14 +784,23 @@ export async function createLibraryServer({
           ...track, disc: state.discs.find((disc) => disc.id === track.discId)?.name ?? track.discId
         }));
         const discOptions = state.discs.map((disc) => `<option value="${escapeHtml(disc.id)}">${escapeHtml(disc.name)}</option>`).join("");
-        const discList = state.discs.length ? `<ul>${state.discs.map((disc) => `<li><span>${escapeHtml(disc.name)}</span><form class="inline" method="post" action="/admin/discs/delete"><input type="hidden" name="data" value="${escapeHtml(JSON.stringify({ id: disc.id }))}"><button class="danger">Borrar disco y temas</button></form></li>`).join("")}</ul>` : "<p class=\"muted\">Aún no hay discos.</p>";
+        const discList = state.discs.length ? `<div class="disc-management">${state.discs.map((disc, index) => {
+          const discTracks = tracks.filter((track) => track.discId === disc.id);
+          return `<details class="disc-card" id="disc-${escapeHtml(disc.id)}"${index === 0 ? " open" : ""}>
+<summary><strong>${escapeHtml(disc.name)}</strong><span class="muted">${discTracks.length} ${discTracks.length === 1 ? "tema" : "temas"}</span></summary>
+<div class="disc-card-body"><div class="disc-toolbar"><form class="disc-rename" method="post" action="/admin/discs/rename"><input type="hidden" name="id" value="${escapeHtml(disc.id)}"><label>Nombre del disco<input name="name" value="${escapeHtml(disc.name)}" maxlength="100" required></label><button>Guardar disco</button></form>
+<form method="post" action="/admin/discs/delete" onsubmit="return confirm('¿Borrar este disco y todos sus temas?')"><input type="hidden" name="data" value="${escapeHtml(JSON.stringify({ id: disc.id }))}"><button class="danger">Borrar disco</button></form></div>
+${discTracks.length ? `<div class="disc-track-list">${discTracks.map((track) => `<article class="disc-track"><div class="disc-track-heading"><strong>${escapeHtml(track.title)}</strong><span class="muted">${escapeHtml(track.name)}</span></div>
+<form class="track-rename" method="post" action="/admin/tracks/rename"><input type="hidden" name="id" value="${escapeHtml(track.id)}"><label>Nombre del tema<input name="title" value="${escapeHtml(track.title)}" maxlength="255" required></label><button>Guardar tema</button></form>
+<audio controls preload="none" src="/api/audio?id=${encodeURIComponent(track.id)}" aria-label="Preescuchar ${escapeHtml(track.title)}"></audio></article>`).join("")}</div>` : "<p class=\"muted\">Este disco todavía no tiene temas.</p>"}</div></details>`;
+        }).join("")}</div>` : "<p class=\"muted\">Aún no hay discos.</p>";
         const library = tracks.length ? tracks.map((track) => `<article class="track-card" data-disc="${escapeHtml(track.discId)}" data-search="${escapeHtml(`${track.disc} ${track.name}`.toLowerCase())}">
 <div class="track-heading"><div><strong>${escapeHtml(track.title)}</strong><div class="muted">${escapeHtml(track.disc)} · ${escapeHtml(track.name)} · ${(track.sizeBytes / 1024 / 1024).toFixed(2)} MiB</div></div>
 <form method="post" action="/admin/tracks/delete" onsubmit="return confirm('¿Borrar este tema de la biblioteca?')"><input type="hidden" name="data" value="${escapeHtml(JSON.stringify({ id: track.id }))}"><button class="danger">Borrar</button></form></div>
 <audio controls preload="none" src="/api/audio?id=${encodeURIComponent(track.id)}"></audio></article>`).join("") : "<p id=\"emptyLibrary\" class=\"muted\">Todavía no hay archivos de audio. Selecciona un disco y sube el primero.</p>";
         const content = `<main class="app-shell">
 <header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">N</span><span><span class="brand-name">NAS AUDIO</span><span class="brand-caption">DJ MUSIC LIBRARY</span></span></a>
-<nav class="top-nav" aria-label="Navegación principal"><a href="#library">Biblioteca</a><a href="#uploadSection">Importar</a><a href="#playlist">Playlist</a><a href="#schedules">Programación</a></nav>
+<nav class="top-nav" aria-label="Navegación principal"><a href="#discs">Discos</a><a href="#library">Biblioteca</a><a href="#uploadSection">Importar</a><a href="#playlist">Playlist</a><a href="#schedules">Programación</a></nav>
 <form method="post" action="/admin/logout"><button class="danger">Cerrar sesión</button></form></header>
 <section class="hero"><div class="hero-copy"><p class="eyebrow">Tu cabina empieza aquí</p><h1>Biblioteca musical</h1><p>Organiza, escucha y prepara tus temas para la próxima sesión.</p></div><div class="hero-status"><span class="live-dot" aria-hidden="true"></span>Lista para tu sesión</div></section>
 <div class="stats-grid" aria-label="Resumen de biblioteca"><article class="stat-card"><span class="stat-label">Discos</span><strong class="stat-value">${state.discs.length}</strong></article><article class="stat-card"><span class="stat-label">Temas</span><strong class="stat-value">${tracks.length}</strong></article><article class="stat-card"><span class="stat-label">Programaciones</span><strong class="stat-value">${state.schedules.length}</strong></article></div>
@@ -787,7 +814,7 @@ export async function createLibraryServer({
 <div id="uploadProgress" hidden><div class="progress-label"><span id="uploadStatus" role="status">Preparando…</span><span id="uploadPercent">0%</span></div><progress id="uploadBar" max="100" value="0">0%</progress></div>
 <p id="uploadError" class="error" role="alert"></p></section>
 <section class="panel panel-create"><div class="panel-heading"><div><p class="section-kicker">Organización</p><h2>Crear disco</h2></div></div><form method="post" action="/admin/discs"><div class="row"><label>Nombre del disco <input name="name" maxlength="100" required></label><button>Crear disco</button></div></form></section>
-<section class="panel panel-discs"><div class="panel-heading"><div><p class="section-kicker">Colecciones</p><h2>Tus discos</h2></div></div>${discList}</section>
+<section class="panel panel-discs" id="discs"><div class="panel-heading"><div><p class="section-kicker">Colecciones</p><h2>Discos y temas</h2><p class="muted">Abre un disco para revisar, preescuchar y editar sus temas.</p></div></div>${discList}</section>
 <section class="panel panel-library" id="library"><div class="panel-heading"><div><p class="section-kicker">Catálogo</p><h2>Explorador de biblioteca</h2><p class="muted">Busca y preescucha tus temas.</p></div></div><div class="library-filters"><label>Buscar tema o disco <input id="librarySearch" type="search" placeholder="Ej. house, verano…"></label><label>Filtrar por disco <select id="libraryDisc"><option value="">Todos los discos</option>${discOptions}</select></label></div>
 <p id="libraryCount" class="muted library-count"></p><div id="libraryTracks" class="track-list">${library}</div><p id="noMatches" class="muted empty-state" hidden>No hay temas que coincidan con el filtro.</p></section>
 <section class="panel panel-replace"><div class="panel-heading"><div><p class="section-kicker">Mantenimiento</p><h2>Reemplazar audio</h2></div></div><label>Tema <select id="replaceTrack" ${tracks.length ? "" : "disabled"}>${tracks.map((track) => `<option value="${escapeHtml(track.id)}">${escapeHtml(track.disc)} — ${escapeHtml(track.name)}</option>`).join("")}</select></label>
@@ -809,10 +836,12 @@ document.getElementById("replaceButton").onclick=async()=>{const file=document.g
 const libraryCards=[...document.querySelectorAll(".track-card")],librarySearch=document.getElementById("librarySearch"),libraryDisc=document.getElementById("libraryDisc");
 function filterLibrary(){const query=librarySearch.value.trim().toLowerCase(),disc=libraryDisc.value;let visible=0;for(const card of libraryCards){const show=(!query||card.dataset.search.includes(query))&&(!disc||card.dataset.disc===disc);card.hidden=!show;if(show)visible++}document.getElementById("libraryCount").textContent=visible+" de "+libraryCards.length+" temas";document.getElementById("noMatches").hidden=visible!==0||libraryCards.length===0}
 librarySearch.oninput=filterLibrary;libraryDisc.onchange=filterLibrary;filterLibrary();
+if(location.hash){const selected=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(selected?.matches("details"))selected.open=true}
 </script></main>`;
         return pageResponse(res, htmlPage(content));
       }
-      if (["/admin/discs", "/admin/discs/delete", "/admin/tracks/delete", "/admin/playlist",
+      if (["/admin/discs", "/admin/discs/rename", "/admin/discs/delete", "/admin/tracks/rename",
+        "/admin/tracks/delete", "/admin/playlist",
         "/admin/playback", "/admin/schedules"].includes(url.pathname) && req.method === "POST") {
         if (!adminSession(req)) return pageResponse(res, htmlPage("<h1>Sesión expirada</h1>"), 401);
         const form = await readForm(req);
@@ -832,6 +861,22 @@ librarySearch.oninput=filterLibrary;libraryDisc.onchange=filterLibrary;filterLib
             return fail(res, 409, "Se alcanzó el límite de 500 discos.");
           }
           await mutate(() => { if (!state.discs.some((disc) => disc.id === id)) state.discs.push({ id, name }); });
+        } else if (action === "/admin/discs/rename") {
+          if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.id ?? "")
+            || !validDiscName(body.name)) return fail(res, 400, "Nombre o ID de disco inválido.");
+          const disc = state.discs.find((entry) => entry.id === body.id);
+          if (!disc) return fail(res, 404, "El disco no existe.");
+          const name = body.name.trim();
+          if (state.discs.some((entry) => entry.id !== disc.id
+            && entry.name.localeCompare(name, "es", { sensitivity: "base" }) === 0)) {
+            return fail(res, 409, "Ya existe otro disco con ese nombre.");
+          }
+          await mutate(() => { disc.name = name; });
+        } else if (action === "/admin/tracks/rename") {
+          if (!validTrackTitle(body.title)) return fail(res, 400, "El nombre del tema debe tener entre 1 y 255 caracteres.");
+          const track = state.tracks.find((entry) => entry.id === body.id);
+          if (!track || !toTrack(state, body.id)) return fail(res, 404, "El tema no existe.");
+          await mutate(() => { track.title = body.title.trim(); });
         } else if (action === "/admin/discs/delete") {
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.id ?? "")
             || !state.discs.some((disc) => disc.id === body.id)) return fail(res, 404, "El disco no existe.");
@@ -891,7 +936,9 @@ librarySearch.oninput=filterLibrary;libraryDisc.onchange=filterLibrary;filterLib
             })) return fail(res, 400, "Programaciones inválidas.");
           await mutate(() => { state.schedules = body.schedules; });
         }
-        res.writeHead(303, { Location: "/admin" });
+        const selectedDiscId = action === "/admin/discs/rename" ? body.id
+          : action === "/admin/tracks/rename" ? body.id.split("/")[0] : null;
+        res.writeHead(303, { Location: selectedDiscId ? `/admin#disc-${selectedDiscId}` : "/admin" });
         return res.end();
       }
       return fail(res, 404, "Ruta no encontrada.");

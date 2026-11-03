@@ -56,10 +56,11 @@ archivos de hasta 100 MiB y las extensiones AAC, M4A, MP3, OGG, OPUS y WAV.
 Se admiten hasta 500 discos, 5000 temas y 200 programaciones.
 
 Las rutas de API y formatos implementados corresponden al contrato entregado
-para Radio. El panel permite crear y borrar discos, cargar varios temas,
-reemplazar un archivo manteniendo su ID, editar la cola, controlar el
-reproductor y gestionar programaciones. La programación diaria/semanal avanza
-en intervalos de 24 horas/7 días desde la hora guardada.
+para Radio. El panel permite crear, renombrar y borrar discos; explorar cada
+disco con sus temas, preescucharlos y editar sus títulos sin cambiar sus IDs;
+cargar varios temas, reemplazar un archivo manteniendo su ID, editar la cola,
+controlar el reproductor y gestionar programaciones. La programación
+diaria/semanal avanza en intervalos de 24 horas/7 días desde la hora guardada.
 
 El formulario de carga requiere seleccionar un disco existente, permite
 preescuchar el audio y cambiar el nombre base manteniendo fija la extensión.

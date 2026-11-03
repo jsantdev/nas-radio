@@ -175,6 +175,41 @@ test("admin login keeps the API key out of the panel and uses an HTTP-only sessi
   });
   assert.equal(upload.status, 201);
 
+  const renamedDisc = await fetch(`${base}/admin/discs/rename`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ id: "panel", name: "Sesión Noche" }),
+    redirect: "manual"
+  });
+  assert.equal(renamedDisc.status, 303);
+  assert.equal(renamedDisc.headers.get("location"), "/admin#disc-panel");
+  const renamedTrack = await fetch(`${base}/admin/tracks/rename`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ id: "panel/tema.mp3", title: "Intro de la sesión" }),
+    redirect: "manual"
+  });
+  assert.equal(renamedTrack.status, 303);
+  const renamedCatalog = await fetch(`${base}/api/discs`);
+  const renamedDiscData = (await renamedCatalog.json()).discs[0];
+  assert.equal(renamedDiscData.id, "panel");
+  assert.equal(renamedDiscData.name, "Sesión Noche");
+  assert.equal(renamedDiscData.tracks[0].id, "panel/tema.mp3");
+  assert.equal(renamedDiscData.tracks[0].title, "Intro de la sesión");
+
+  const uploadToRenamedDisc = await fetch(`${base}/admin/upload?disc=panel`, {
+    method: "POST",
+    headers: {
+      Cookie: cookie,
+      "Content-Type": "application/octet-stream",
+      "X-File-Name": "siguiente.mp3"
+    },
+    body: Buffer.from("next-track")
+  });
+  assert.equal(uploadToRenamedDisc.status, 201);
+  const currentTrack = await fetch(`${base}/api/player/state`);
+  assert.equal((await currentTrack.json()).currentTrack.title, "Intro de la sesión");
+
   const replacement = await fetch(`${base}/admin/replace?id=panel%2Ftema.mp3`, {
     method: "PUT",
     headers: { Cookie: cookie, "Content-Type": "application/octet-stream" },
@@ -191,6 +226,9 @@ test("admin login keeps the API key out of the panel and uses an HTTP-only sessi
   assert.match(adminHtml, /id="uploadBar"/);
   assert.match(adminHtml, /id="librarySearch"/);
   assert.match(adminHtml, /id="fileExtension"/);
+  assert.match(adminHtml, /Discos y temas/);
+  assert.match(adminHtml, /Intro de la sesión/);
+  assert.match(adminHtml, /action="\/admin\/tracks\/rename"/);
   assert.ok(adminHtml.indexOf("id=\"uploadProgress\"") < adminHtml.indexOf("id=\"library\""));
   const inlineScript = adminHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(inlineScript);
